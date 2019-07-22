@@ -9,8 +9,6 @@
         VoigtFit* sc_45 = new VoigtFit("Sc45I",runInfo,qNumbers);
 //      VoigtFit* sc_45 = new VoigtFit("sc45fit.txt"); //Import info from file
 
-
-
 //Instead of a custom class needing to be hardcoded, we can create a sc_45 fit object, instantiate it with the nessesary data,
 //and then fit with it
 

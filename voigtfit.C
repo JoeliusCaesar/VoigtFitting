@@ -2,28 +2,30 @@
 #include "voigtfit.h"
 #include <fstream>
 /*
-This code is a work in progress. Currently for all fittings, there needs to be a custom Fit[mass] function in voigt_fit.h
+This code is a work in progress. Currently for all fittings, there needs to be a custom Fit[Isotope#] function in voigt_fit.h
 The purpose of this code is to replace the need to add additional functions for new isotopes.
 This should also reduce the run time of the fitting program.
 
 -For example:
 -Currently the TF1 in fit45.C is defined as:
-asymmvoigt = new TF1("Sc45", Sc45, fspec->GetBinCenter(fspec->FindFirstBinAbove(0)), fspec->GetBinCenter(fspec->FindLastBinAbove(0)),19);
+specStart = fspec->GetBinCenter(fspec->FindFirstBinAbove(0));
+specEnd = fspec->GetBinCenter(fspec->FindLastBinAbove(0));
+asymmvoigt = new TF1("Sc45", Sc45, spectStart, specEnd, 19);
 
 -Now it can be defined as:
 VoigtFit sc_45 = new VoigtFit(Name&Charge,{Run#,Mass,#ofPeaks},{I,F,J,a1,a2,b1,b2})
--or...
+i.e.
 VoigtFit sc_45 = new VoigtFit("Sc45I",{6538,44.955912,9},{3.5,1,2,368,-480,-61.7,-12.6})
 
 -And run as
-asymmvoigt = new TF1("Sc45", sc_45, &VoigtFit::MultiVoight, fspec->GetBinCenter(fspec->FindFirstBinAbove(0)), fspec->GetBinCenter(fspec->FindLastBinAbove(0)),19, "VoigtFit", "MultiVoigt")
+asymmvoigt = new TF1("Sc45", sc_45, &VoigtFit::MultiVoight, specStart, specEnd, 19, "VoigtFit", "MultiVoigt")
 
 */
 
-
 //VoigtFit::VoigtFit(string isoName, double* runInfo, double* params, double* intensities);
 
-VoigtFit::VoigtFit(string isoName, double* runInfo, double* qNumbers){
+//VoigtFit object consturctor
+oigtFit::VoigtFit(string isoName, double* runInfo, double* qNumbers){
 	name_ = isoName;		//optional, for later implamentation
 	runNumber_ = int(runInfo[0]);	//optional
 	mass_ = runInfo[1];
@@ -31,19 +33,24 @@ VoigtFit::VoigtFit(string isoName, double* runInfo, double* qNumbers){
 	peakPositions = new double[numpks_];
 	peakIntensities = new double[numpks_];	
 	
-	a1 = qNumbers[3]; //Initial guesses for atomic coeff
+	//Quantum Numbers
+	qI = qNumbers[0];
+	qF = qNumbers[1];
+	qJ = qNumbers[2];
+	
+	//Initial guesses for atomic coeff
+	a1 = qNumbers[3];
 	a2 = qNumbers[4];
 	b1 = qNumbers[5];
 	b2 = qNumbers[6];
 
-	qI = qNumbers[0];
-	qF = qNumbers[1];
-	qJ = qNumbers[2];
 	//Sets peak positions
 	deltaE(qI,qF,qJ);
 }
 
+//Load fit from file
 VoigtFit::VoigtFit(string filename){
+	//Open and Read Infile
 	int l = 0;
 	double arr[30];
 	ifstream File;
@@ -53,13 +60,14 @@ VoigtFit::VoigtFit(string filename){
 		l++;
 	}	
 	File.close();
+	//Close Infile
 	
 	name_ = filename;
 	runNumber_ = int(arr[0]);
 	mass_ = arr[1];
 	numpks_ = int(arr[2]);
-	peakPositions = new double[numpks_];
-	peakIntensities = new double[numpks_];	
+	peakPositions = new double[numpks_]; //Position of Signal Peaks on X axis
+	peakIntensities = new double[numpks_];	//Height each Peak on Y axis
 	
 	a1 = arr[3];
 	a2 = arr[4];
@@ -123,10 +131,10 @@ void VoigtFit::SetParams(double* par){
 	lorentz =  par[2];	//lorentz fraction
 	asym = par[3];		//Assymetry
 	baseline = par[4];	//Background
-	a2 = par[5];		//Excited state 
-	a1 = par[6];		//Ground state
-	b2 = par[7];		//Excited State
-	b1 = par[8];			
+	a2 = par[5];		//Excited state A 
+	a1 = par[6];		//Ground state A
+	b2 = par[7];		//Excited State B
+	b1 = par[8];		//Ground state B
 	centroid = par[9];	//Centroid from where splitting occurs
 
 	deltaE(qI,qF,qJ);	//Calculate splittings from new a & b values
@@ -147,10 +155,14 @@ double VoigtFit::bCoef(const double I, const double F, const double J){
 	double K = F*(F+1.0)-I*(I+1.0)-J*(J+1.0);
 	return (3.0*K*(K+1.0)-4*I*(I+1.0)*J*(J+1.0))/(8.0*I*(2.0*I-1.0)*J*(2.0*J-1.0));
 }
+
+
+/* This Functions calculates the */
 void VoigtFit::deltaE(const double I, const double J1, const double J2){
 	//A1 A2 B1 B2
 	//5  6  7  8
 
+	//Debug log title
 	//cout<<setw(6)<<"Peak#"<<" f1"<<"  f2"<<"  j1"<<" j2  E        atomic coefs-- A1:"<<atomicCoef[5]<<" A2:"<<atomicCoef[6]<<" B1:"<<atomicCoef[7]<<" B2:"<<atomicCoef[8]<<endl;
 	int numPos = 0;	
 	for(double f1 = I-J1; f1<=(I+J1); f1++){
@@ -160,8 +172,8 @@ void VoigtFit::deltaE(const double I, const double J1, const double J2){
 				double E2 =aCoef(I,f2,J2)*a2+bCoef(I,f2,J2)*b2;//A2 B2 for excit state
 				double dE = E2-E1;
 				peakPositions[numPos] = dE;
-			//	cout<<"Peak#"<<numPos<<" positioned at: "<<dE<<endl;
 				numPos++;
+			//debug	cout<<"Peak#"<<numPos<<" positioned at: "<<dE<<endl;
 			//	cout<<setw(6)<<numPos<<" "<<f1<<" "<<f2<<" "<<J1<<"  "<<J2<<"  "<<E1<<" - "<<E2<<" = "<<dE<<endl;
 			//	if(numPos > 99){cout<<"Too many peaks!"<<endl;}
 			}

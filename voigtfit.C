@@ -25,7 +25,7 @@ asymmvoigt = new TF1("Sc45", sc_45, &VoigtFit::MultiVoight, specStart, specEnd, 
 //VoigtFit::VoigtFit(string isoName, double* runInfo, double* params, double* intensities);
 
 //VoigtFit object consturctor
-oigtFit::VoigtFit(string isoName, double* runInfo, double* qNumbers){
+VoigtFit::VoigtFit(string isoName, double* runInfo, double* qNumbers){
 	name_ = isoName;		//optional, for later implamentation
 	runNumber_ = int(runInfo[0]);	//optional
 	mass_ = runInfo[1];
